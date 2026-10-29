@@ -110,7 +110,8 @@ const MM = { w: 360, h: 208 };
 const mmScale = MM.w / WORLD.w;
 
 // Collaborators. Each viewport keyframe is [time, x, y] for the viewport's top-left in world space.
-// `home` is where their viewport parks while watching. Cursor moves are in world space: at time
+// `home` is where their viewport parks while watching. They point at whichever note I'm typing,
+// staying clear of the text. Cursor moves are in world space: at time
 // `at` they glide to `to` over `dur` seconds, idle-jiggle there for `hover` seconds, then sit still.
 // Before the first move the cursor rides along with the viewport at `start` (world, relative to home).
 const OFF_L = [-1900, -900], OFF_R = [3500, 1700], OFF_T = [1800, -1060];
@@ -118,22 +119,18 @@ const people = [
   { name: "Alex", initial: "A", color: "#9747ff", sessionId: 2, join: 3.5, leave: 99,
     home: [-260, -80], vp: [[0, ...OFF_L], [5.5, ...OFF_L], [7.5, -260, -80], [26, -260, -80], [28, ...OFF_L]],
     start: [1450, 880], arc: 1, moves: [
-      { at: 8.0, to: [470, 480], dur: 0.8, hover: 1.8 },  // "Dark mode for the dark mode"
-      { at: 10.8, to: [735, 500], dur: 0.6, hover: 1.6 }, // my first note
-      { at: 13.2, to: [300, 290], dur: 0.9, hover: 0 },   // parks by the section label
+      { at: 8.0, to: [1165, 545], dur: 0.9, hover: 2.2 }, // empty lower half of "Weekly design crit" as I type it
+      { at: 12.7, to: [352, 745], dur: 0.9, hover: 1.5 }, // follows me to the next note, parks on its left edge
     ] },
   { name: "Sam", initial: "S", color: "#0fa958", sessionId: 3, join: 9.5, leave: 99,
     home: [120, 60], vp: [[0, ...OFF_R], [11, ...OFF_R], [13, 120, 60], [22.5, 120, 60], [24.5, ...OFF_R]],
     start: [1450, 260], arc: -1, moves: [
-      { at: 13.4, to: [1250, 470], dur: 0.7, hover: 1.6 }, // "Weekly design crit"
-      { at: 15.9, to: [990, 455], dur: 0.6, hover: 1.2 },  // "Fewer meetings"
-      { at: 17.9, to: [1110, 790], dur: 0.8, hover: 0 },   // parks in empty space
+      { at: 13.5, to: [520, 872], dur: 0.8, hover: 2.0 }, // just below the note I'm typing
     ] },
   { name: "Jordan", initial: "J", color: "#f24822", sessionId: 4, join: 14.5, leave: 99,
     home: [60, -140], vp: [[0, ...OFF_T], [16, ...OFF_T], [18, 60, -140], [22.8, 60, -140], [24.8, ...OFF_T]],
     start: [1300, 250], arc: 1, moves: [
-      { at: 18.3, to: [760, 730], dur: 0.7, hover: 1.2 }, // "Rename Settings"
-      { at: 20.4, to: [500, 735], dur: 0.6, hover: 0 },   // parks right on the note I'm typing
+      { at: 18.3, to: [440, 790], dur: 0.7, hover: 1.4 }, // inside the note, under the text
     ] },
 ];
 
