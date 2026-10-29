@@ -1,0 +1,356 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Stage Fright demo</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden;
+    font-family: Inter, -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  #canvas { position: absolute; inset: 0; background-color: #f5f5f5;
+    background-image: radial-gradient(#cfcfcf 1.3px, transparent 1.3px); background-size: 24px 24px; }
+  .sticky { position: absolute; width: 220px; height: 220px; padding: 22px; font-size: 22px; line-height: 1.3;
+    color: #1e1e1e; box-shadow: 0 2px 4px rgba(0,0,0,.08), 0 8px 16px rgba(0,0,0,.06); }
+  .sticky.mine { white-space: pre-wrap; word-break: break-word; }
+  .sticky.editing { outline: 3px solid #0d99ff; outline-offset: 2px; }
+  .caret { display: inline-block; width: 2px; height: 1.1em; margin-left: 1px; vertical-align: -0.15em; background: #0d99ff; }
+  .heading { position: absolute; font-size: 44px; font-weight: 700; color: #1e1e1e; letter-spacing: -0.02em; }
+  .sub { position: absolute; font-size: 22px; color: #6b6b6b; }
+  .section { position: absolute; border-radius: 16px; background: rgba(255,255,255,.7); border: 2px solid #e2e2e2; }
+  .section-label { position: absolute; top: -40px; left: 0; font-size: 20px; font-weight: 600; color: #555;
+    background: #fff; border: 1px solid #e2e2e2; border-radius: 8px; padding: 4px 12px; }
+
+  /* FigJam-ish chrome */
+  .topbar { position: absolute; top: 16px; left: 16px; height: 52px; display: flex; align-items: center; gap: 12px;
+    background: #fff; border-radius: 12px; padding: 0 18px; box-shadow: 0 2px 8px rgba(0,0,0,.12); font-size: 18px; }
+  .logo { width: 26px; height: 26px; border-radius: 7px; background: conic-gradient(#ff7262, #a259ff, #1abcfe, #0acf83, #f24e1e); }
+  .file { font-weight: 600; }
+  .toolbar { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px;
+    background: #fff; border-radius: 16px; padding: 10px 14px; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+  .tool { width: 48px; height: 48px; border-radius: 10px; display: grid; place-items: center; font-size: 24px; }
+  .tool.on { background: #e5f4ff; }
+  .people { position: absolute; top: 16px; right: 16px; height: 52px; display: flex; align-items: center; gap: 10px;
+    background: #fff; border-radius: 12px; padding: 0 12px 0 16px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+  .avatars { display: flex; }
+  .avatar { position: relative; width: 36px; height: 36px; border-radius: 50%; color: #fff; font-weight: 700; font-size: 15px;
+    display: grid; place-items: center; border: 2px solid #fff; margin-left: -8px; transition: transform .2s; }
+  .avatar .eyes { position: absolute; bottom: -12px; right: -10px; font-size: 20px; }
+  .share { background: #0d99ff; color: #fff; font-weight: 600; font-size: 16px; padding: 8px 14px; border-radius: 8px; margin-left: 6px; }
+
+  /* minimap */
+  .minimap { position: absolute; right: 24px; bottom: 24px; width: 380px; height: 250px; background: #fff;
+    border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.15); overflow: hidden; }
+  .minimap-title { position: absolute; left: 12px; top: 8px; font-size: 14px; font-weight: 600; color: #777; }
+  .mm-world { position: absolute; left: 10px; top: 32px; width: 360px; height: 208px; background: #f2f2f2; border-radius: 6px; overflow: hidden; }
+  .mm-vp { position: absolute; border: 2px solid; border-radius: 3px; }
+  .mm-vp span { position: absolute; top: -1px; left: -1px; font-size: 10px; font-weight: 700; color: #fff; padding: 0 4px; border-radius: 2px 0 3px 0; }
+  .mm-me { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #1e1e1e; }
+
+  /* cursors */
+  .cursor { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; }
+  .cursor svg { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,.3)); }
+  .tag { position: absolute; left: 20px; top: 22px; color: #fff; font-size: 16px; font-weight: 600; padding: 4px 10px;
+    border-radius: 4px 12px 12px 12px; white-space: nowrap; }
+
+  /* anxiety bar (mirrors the plugin's node layout) */
+  #bar { position: absolute; left: 0; top: 0; will-change: transform; transform-origin: 50% 100%; }
+  #face { position: absolute; top: 0; width: 100%; text-align: center; line-height: 1; }
+  #track { position: absolute; background: #fff; border: 1.5px solid #1f1f24; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+  #fill { position: absolute; }
+
+  #vignette { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(230,30,30,.35) 100%); opacity: 0; }
+</style>
+</head>
+<body>
+<div id="canvas">
+  <div class="heading" style="left:330px; top:170px">Q4 Roadmap Brainstorm</div>
+  <div class="sub" style="left:332px; top:232px">Drop your ideas below. No bad ideas!! (some bad ideas)</div>
+
+  <div class="section" style="left:320px; top:330px; width:1240px; height:560px">
+    <div class="section-label">Ideas</div>
+  </div>
+  <div class="sticky" style="left:360px; top:370px; background:#fff1a8; transform:rotate(-2deg)">Dark mode for the dark mode</div>
+  <div class="sticky" style="left:880px; top:366px; background:#c8f2d6; transform:rotate(-1deg)">Fewer meetings (meeting to discuss)</div>
+  <div class="sticky" style="left:640px; top:640px; background:#e8dcff; transform:rotate(-2.5deg)">Rename "Settings" to "Vibes"</div>
+  <div id="mine"></div>
+</div>
+
+<div class="topbar"><div class="logo"></div><span class="file">Team Brainstorm</span><span style="color:#999">/ FigJam</span></div>
+<div class="toolbar">
+  <div class="tool on">➤</div><div class="tool">✏️</div><div class="tool">🟨</div><div class="tool">⬛</div>
+  <div class="tool">T</div><div class="tool">🔗</div><div class="tool">😀</div>
+</div>
+<div class="people"><div class="avatars" id="avatars"></div><div class="share">Share</div></div>
+
+<div class="minimap">
+  <div class="minimap-title">Who can see you</div>
+  <div class="mm-world" id="mm"></div>
+</div>
+
+<div id="others"></div>
+<div id="vignette"></div>
+
+<div id="bar"><div id="face"></div><div id="track"></div><div id="fill"></div></div>
+<div class="cursor" id="me">
+  <svg width="28" height="34" viewBox="0 0 28 34"><path d="M3 2 L3 27 L9.5 21 L14 31.5 L18.5 29.5 L14 19.5 L23 19.5 Z"
+    fill="#111" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg>
+</div>
+
+<script type="module">
+import { Typer } from "./typing.js";
+import { BAR, countWatchers, targetLevel, stepLevel, barColor, jitter, isPanicking, stepTilt } from "../src/logic.js";
+
+const DURATION = 34;
+const VW = 1920, VH = 1080;
+
+// World-space minimap: covers (-1920,-1080) to (3840,2160).
+const WORLD = { x: -1920, y: -1080, w: 5760, h: 3240 };
+const MM = { w: 360, h: 208 };
+const mmScale = MM.w / WORLD.w;
+
+// Collaborators. Each viewport keyframe is [time, x, y] for the viewport's top-left in world space.
+const OFF_L = [-1900, -900], OFF_R = [3500, 1700], OFF_T = [1800, -1060];
+const people = [
+  { name: "Alex", initial: "A", color: "#9747ff", sessionId: 2, join: 3.5, leave: 99,
+    vp: [[0, ...OFF_L], [5.5, ...OFF_L], [7.5, -260, -80], [26, -260, -80], [28, ...OFF_L]],
+    curPhase: 0 },
+  { name: "Sam", initial: "S", color: "#0fa958", sessionId: 3, join: 9.5, leave: 99,
+    vp: [[0, ...OFF_R], [11, ...OFF_R], [13, 120, 60], [22.5, 120, 60], [24.5, ...OFF_R]],
+    curPhase: 2.1 },
+  { name: "Jordan", initial: "J", color: "#f24822", sessionId: 4, join: 14.5, leave: 99,
+    vp: [[0, ...OFF_T], [16, ...OFF_T], [18, 60, -140], [22.8, 60, -140], [24.8, ...OFF_T]],
+    curPhase: 4.2 },
+];
+
+const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+function track(keys, t) {
+  if (t <= keys[0][0]) return { x: keys[0][1], y: keys[0][2] };
+  for (let i = 0; i < keys.length - 1; i++) {
+    const [t0, x0, y0] = keys[i], [t1, x1, y1] = keys[i + 1];
+    if (t <= t1) {
+      const u = ease((t - t0) / (t1 - t0));
+      return { x: x0 + (x1 - x0) * u, y: y0 + (y1 - y0) * u };
+    }
+  }
+  const k = keys[keys.length - 1];
+  return { x: k[1], y: k[2] };
+}
+
+function mulberry32(a) {
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// My notes, typed into empty stickies one after another. Watchers join on their own
+// clock, so whichever note is being typed when the bar fills up gets mangled.
+const NOTES = [
+  { left: 620, top: 380, color: "#ffd3e6", rot: 1.5, text: "Pin favorite boards to the sidebar" },
+  { left: 1140, top: 384, color: "#d6e4ff", rot: 2, text: "Weekly design crit on Fridays" },
+  { left: 380, top: 630, color: "#ffe0c2", rot: 1, text: "Make the logo bigger" },
+  { left: 900, top: 626, color: "#c8f2d6", rot: 1.2, text: "Keyboard shortcut cheat sheet" },
+];
+const MOVE = 0.7, CLICK = 0.25, REST = 0.6;
+const mineEl = document.getElementById("mine");
+for (const n of NOTES) {
+  n.el = document.createElement("div");
+  n.el.className = "sticky mine";
+  n.el.style.cssText = `left:${n.left}px; top:${n.top}px; background:${n.color}; display:none`;
+  mineEl.appendChild(n.el);
+  n.spot = { x: n.left + 185, y: n.top + 195 }; // where I click to edit
+}
+const typer = new Typer(42);
+let script = { phase: "start", idx: -1, since: 0.3, from: { x: 1300, y: 820 } };
+
+function updateScript(t, level) {
+  const sc = script;
+  const note = NOTES[sc.idx];
+  if (sc.phase === "start" && t >= sc.since) Object.assign(sc, { phase: "move", idx: 0, since: t });
+  else if (sc.phase === "move" && t - sc.since >= MOVE) {
+    Object.assign(sc, { phase: "type", since: t });
+    typer.start(note.text, t + CLICK);
+  } else if (sc.phase === "type") {
+    typer.update(t, level);
+    if (typer.done) Object.assign(sc, { phase: "rest", since: t });
+  } else if (sc.phase === "rest" && t - sc.since >= REST) {
+    if (sc.idx + 1 < NOTES.length) Object.assign(sc, { phase: "move", idx: sc.idx + 1, since: t, from: note.spot });
+    else sc.phase = "idle";
+  }
+}
+
+function myCursor(t) {
+  const sc = script;
+  const drift = { x: Math.sin(t * 2.3) * 4, y: Math.cos(t * 1.9) * 3 };
+  if (sc.phase === "start") return { x: sc.from.x + drift.x, y: sc.from.y + drift.y };
+  const spot = NOTES[sc.idx].spot;
+  if (sc.phase === "move") {
+    const u = ease(Math.min(1, (t - sc.since) / MOVE));
+    return { x: sc.from.x + (spot.x - sc.from.x) * u + drift.x, y: sc.from.y + (spot.y - sc.from.y) * u + drift.y };
+  }
+  return { x: spot.x + drift.x, y: spot.y + drift.y };
+}
+
+function renderNotes(t) {
+  NOTES.forEach((n, i) => {
+    const sc = script;
+    const placed = i < sc.idx || (i === sc.idx && sc.phase !== "move" && sc.phase !== "start");
+    n.el.style.display = placed ? "block" : "none";
+    if (!placed) return;
+    if (n.placedAt === undefined) n.placedAt = t;
+    const pop = Math.min(1, (t - n.placedAt) / 0.18);
+    const scale = 0.7 + 0.3 * (1 - Math.pow(1 - pop, 3));
+    n.el.style.transform = `rotate(${n.rot}deg) scale(${scale})`;
+    const editing = i === sc.idx && sc.phase === "type";
+    n.el.classList.toggle("editing", editing);
+    const text = i === sc.idx ? typer.buf : n.text;
+    const caretOn = editing && (t - typer.lastKey < 0.5 || Math.floor(t * 2) % 2 === 0);
+    n.el.textContent = text;
+    if (caretOn) n.el.insertAdjacentHTML("beforeend", '<span class="caret"></span>');
+  });
+}
+
+// Build DOM for collaborators.
+const othersEl = document.getElementById("others");
+const avatarsEl = document.getElementById("avatars");
+const mmEl = document.getElementById("mm");
+const arrow = (c) => `<svg width="28" height="34" viewBox="0 0 28 34"><path d="M3 2 L3 27 L9.5 21 L14 31.5 L18.5 29.5 L14 19.5 L23 19.5 Z" fill="${c}" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg>`;
+const meAvatar = document.createElement("div");
+meAvatar.className = "avatar"; meAvatar.style.background = "#1e1e1e"; meAvatar.textContent = "Me";
+meAvatar.style.fontSize = "12px";
+avatarsEl.appendChild(meAvatar);
+
+const myVp = document.createElement("div");
+myVp.className = "mm-vp"; myVp.style.borderColor = "#1e1e1e"; myVp.style.borderStyle = "dashed";
+mmEl.appendChild(myVp);
+const mmMe = document.createElement("div"); mmMe.className = "mm-me"; mmEl.appendChild(mmMe);
+
+for (const p of people) {
+  p.cursorEl = document.createElement("div");
+  p.cursorEl.className = "cursor";
+  p.cursorEl.innerHTML = arrow(p.color) + `<div class="tag" style="background:${p.color}">${p.name}</div>`;
+  othersEl.appendChild(p.cursorEl);
+
+  p.avatarEl = document.createElement("div");
+  p.avatarEl.className = "avatar";
+  p.avatarEl.style.background = p.color;
+  p.avatarEl.innerHTML = `${p.initial}<span class="eyes"></span>`;
+  avatarsEl.appendChild(p.avatarEl);
+
+  p.mmEl = document.createElement("div");
+  p.mmEl.className = "mm-vp";
+  p.mmEl.style.borderColor = p.color;
+  p.mmEl.innerHTML = `<span style="background:${p.color}">${p.name}</span>`;
+  mmEl.appendChild(p.mmEl);
+}
+
+function placeMm(el, r) {
+  el.style.left = (r.x - WORLD.x) * mmScale + "px";
+  el.style.top = (r.y - WORLD.y) * mmScale + "px";
+  el.style.width = r.width * mmScale + "px";
+  el.style.height = r.height * mmScale + "px";
+}
+placeMm(myVp, { x: 0, y: 0, width: VW, height: VH });
+
+const barEl = document.getElementById("bar"), faceEl = document.getElementById("face");
+const trackEl = document.getElementById("track"), fillEl = document.getElementById("fill");
+const meEl = document.getElementById("me");
+const vignetteEl = document.getElementById("vignette");
+
+// Screen scale for the bar. The real plugin keeps it at 18x64 screen px; the demo bumps it so it reads on video.
+const S = 2.4;
+
+let level = 0;
+let lastT = 0;
+let tilt = { angle: 0, vel: 0 };
+let lastX = null;
+
+// Render the frame at time t (seconds). Must be called with increasing t.
+window.renderAt = (t) => {
+  const dt = Math.max(0, t - lastT);
+  lastT = t;
+  updateScript(t, level);
+  const pos = myCursor(t);
+  const me = { sessionId: 1, position: pos };
+
+  const users = [me];
+  for (const p of people) {
+    const present = t >= p.join && t < p.leave;
+    const o = track(p.vp, t);
+    const viewport = { x: o.x, y: o.y, width: VW, height: VH };
+    const cx = viewport.x + VW * (0.42 + 0.12 * Math.sin(t * 0.9 + p.curPhase));
+    const cy = viewport.y + VH * (0.45 + 0.1 * Math.cos(t * 1.1 + p.curPhase));
+    p.state = { present, viewport, cursor: { x: cx, y: cy } };
+    if (present) users.push({ sessionId: p.sessionId, viewport });
+  }
+
+  const watchers = countWatchers(me, users);
+  level = stepLevel(level, targetLevel(watchers), dt);
+  const panicking = isPanicking(level, watchers);
+  const j = jitter(level, watchers, mulberry32(Math.floor(t * 1000)));
+  const vx = lastX !== null && dt > 0 ? (pos.x - lastX) / dt : 0;
+  lastX = pos.x;
+  if (dt > 0) tilt = stepTilt(tilt, vx, dt);
+
+  // My cursor shakes a little too when panicking.
+  const shake = panicking ? { x: j.dx * 0.6, y: j.dy * 0.6 } : { x: 0, y: 0 };
+  meEl.style.transform = `translate(${pos.x + shake.x - 3}px, ${pos.y + shake.y - 2}px)`;
+
+  // Bar layout mirrors src/plugin.js layout().
+  const w = BAR.width * S, h = BAR.height * S, pad = BAR.pad * S, head = 20 * S;
+  barEl.style.width = w + "px"; barEl.style.height = h + head + "px";
+  trackEl.style.cssText = `left:0;top:${head}px;width:${w}px;height:${h}px;border-radius:${w / 2}px`;
+  const innerW = w - pad * 2, innerH = h - pad * 2;
+  const fh = Math.max(innerW, innerH * level);
+  const c = barColor(level);
+  const rgb = `rgb(${c.r * 255 | 0},${c.g * 255 | 0},${c.b * 255 | 0})`;
+  fillEl.style.cssText = `left:${pad}px;top:${head + pad + innerH - fh}px;width:${innerW}px;height:${fh}px;` +
+    `border-radius:${innerW / 2}px;background:${rgb};opacity:${level < 0.02 ? 0.35 : 1}`;
+  faceEl.style.fontSize = 14 * S + "px";
+  faceEl.textContent = panicking ? "😱" : level > 0.6 ? "😰" : level > 0.25 ? "😬" : "😐";
+  barEl.style.transform =
+    `translate(${pos.x + shake.x + (BAR.offsetX + j.dx) * S}px, ${pos.y + shake.y + (BAR.offsetY * S + j.dy * S)}px) rotate(${tilt.angle + j.rot}deg)`;
+
+  // Collaborators: cursor on screen if inside my viewport, avatar, minimap rect.
+  for (const p of people) {
+    const s = p.state;
+    const watching = s.present && s.viewport && pos.x >= s.viewport.x && pos.x <= s.viewport.x + VW &&
+      pos.y >= s.viewport.y && pos.y <= s.viewport.y + VH;
+    const onScreen = s.present && s.cursor.x > -40 && s.cursor.x < VW && s.cursor.y > -40 && s.cursor.y < VH;
+    p.cursorEl.style.display = onScreen ? "block" : "none";
+    p.cursorEl.style.transform = `translate(${s.cursor.x}px, ${s.cursor.y}px)`;
+    p.avatarEl.style.display = s.present ? "grid" : "none";
+    p.avatarEl.querySelector(".eyes").textContent = watching ? "👀" : "";
+    p.avatarEl.style.transform = watching ? "scale(1.12)" : "none";
+    p.mmEl.style.display = s.present ? "block" : "none";
+    placeMm(p.mmEl, s.viewport);
+  }
+  mmMe.style.left = (pos.x - WORLD.x) * mmScale + "px";
+  mmMe.style.top = (pos.y - WORLD.y) * mmScale + "px";
+
+  vignetteEl.style.opacity = Math.max(0, (level - 0.6) / 0.4) * (panicking ? 0.9 + 0.1 * Math.sin(t * 30) : 0.7);
+
+  renderNotes(t);
+  return { watchers, level, panicking, note: script.idx, buf: typer.buf };
+};
+
+window.DURATION = DURATION;
+
+// Live preview when opened directly (not recording).
+if (!location.search.includes("record")) {
+  const start = performance.now();
+  const loop = () => {
+    const t = ((performance.now() - start) / 1000) % DURATION;
+    if (t < lastT) { location.reload(); return; }
+    window.renderAt(t);
+    requestAnimationFrame(loop);
+  };
+  loop();
+}
+window.demoReady = true;
+</script>
+</body>
+</html>

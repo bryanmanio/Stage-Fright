@@ -1,0 +1,11 @@
+{
+  "name": "Stage Fright",
+  "id": "stage-fright-dev",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figjam"],
+  "documentAccess": "dynamic-page",
+  "permissions": ["activeusers", "currentuser"],
+  "networkAccess": { "allowedDomains": ["none"] }
+}

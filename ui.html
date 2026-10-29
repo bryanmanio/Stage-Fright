@@ -1,0 +1,45 @@
+<style>
+  body { font: 12px/1.4 Inter, system-ui, sans-serif; margin: 0; padding: 12px;
+    color: var(--figma-color-text, #222); background: var(--figma-color-bg, #fff); }
+  h1 { font-size: 13px; margin: 0 0 8px; }
+  .meter { height: 8px; border-radius: 4px; background: var(--figma-color-bg-secondary, #eee); overflow: hidden; }
+  .meter > div { height: 100%; width: 0; transition: width .2s, background .2s; }
+  .row { display: flex; justify-content: space-between; margin: 8px 0 4px; }
+  ul { list-style: none; padding: 0; margin: 4px 0 8px; max-height: 44px; overflow: auto; }
+  li::before { content: "● "; color: var(--c); }
+  li.watching::after { content: " 👀"; }
+  label { display: block; margin: 6px 0; }
+  button { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid var(--figma-color-border, #ccc);
+    background: var(--figma-color-bg-brand, #0d99ff); color: #fff; font-weight: 600; cursor: pointer; }
+</style>
+<h1 id="title">😐 Stage Fright</h1>
+<div class="meter"><div id="fill"></div></div>
+<div class="row"><span id="watchers">0 watching</span><span id="pct">0%</span></div>
+<ul id="others"></ul>
+<label>Fake watchers (solo testing):
+  <select id="fake">
+    <option value="-1">Off (use real people)</option>
+    <option value="0">0</option><option value="1">1</option>
+    <option value="2">2</option><option value="3">3</option>
+  </select>
+</label>
+<button id="stop">Calm down (stop)</button>
+<script>
+  const $ = (id) => document.getElementById(id);
+  $("fake").onchange = (e) => parent.postMessage({ pluginMessage: { type: "fake", value: +e.target.value } }, "*");
+  $("stop").onclick = () => parent.postMessage({ pluginMessage: { type: "stop" } }, "*");
+  onmessage = (e) => {
+    const m = e.data.pluginMessage;
+    if (!m || m.type !== "state") return;
+    const pct = Math.round(m.level * 100);
+    const hue = 130 - 125 * m.level;
+    $("fill").style.width = pct + "%";
+    $("fill").style.background = `hsl(${hue} 80% 48%)`;
+    $("pct").textContent = pct + "%";
+    $("watchers").textContent = `${m.watchers} watching${m.fake ? " (fake)" : ""}`;
+    $("title").textContent = (m.panicking ? "😱" : m.level > 0.6 ? "😰" : m.level > 0.25 ? "😬" : "😐") + " Stage Fright";
+    $("others").innerHTML = m.others.length
+      ? m.others.map((o) => `<li style="--c:${o.color}" class="${o.watching ? "watching" : ""}">${o.name}</li>`).join("")
+      : "<li style='--c:#aaa'>Nobody else here. Phew.</li>";
+  };
+</script>
