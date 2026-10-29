@@ -110,17 +110,31 @@ const MM = { w: 360, h: 208 };
 const mmScale = MM.w / WORLD.w;
 
 // Collaborators. Each viewport keyframe is [time, x, y] for the viewport's top-left in world space.
+// `home` is where their viewport parks while watching. Cursor moves are in world space: at time
+// `at` they glide to `to` over `dur` seconds, idle-jiggle there for `hover` seconds, then sit still.
+// Before the first move the cursor rides along with the viewport at `start` (world, relative to home).
 const OFF_L = [-1900, -900], OFF_R = [3500, 1700], OFF_T = [1800, -1060];
 const people = [
   { name: "Alex", initial: "A", color: "#9747ff", sessionId: 2, join: 3.5, leave: 99,
-    vp: [[0, ...OFF_L], [5.5, ...OFF_L], [7.5, -260, -80], [26, -260, -80], [28, ...OFF_L]],
-    curPhase: 0 },
+    home: [-260, -80], vp: [[0, ...OFF_L], [5.5, ...OFF_L], [7.5, -260, -80], [26, -260, -80], [28, ...OFF_L]],
+    start: [1450, 880], arc: 1, moves: [
+      { at: 8.0, to: [470, 480], dur: 0.8, hover: 1.8 },  // "Dark mode for the dark mode"
+      { at: 10.8, to: [735, 500], dur: 0.6, hover: 1.6 }, // my first note
+      { at: 13.2, to: [300, 290], dur: 0.9, hover: 0 },   // parks by the section label
+    ] },
   { name: "Sam", initial: "S", color: "#0fa958", sessionId: 3, join: 9.5, leave: 99,
-    vp: [[0, ...OFF_R], [11, ...OFF_R], [13, 120, 60], [22.5, 120, 60], [24.5, ...OFF_R]],
-    curPhase: 2.1 },
+    home: [120, 60], vp: [[0, ...OFF_R], [11, ...OFF_R], [13, 120, 60], [22.5, 120, 60], [24.5, ...OFF_R]],
+    start: [1450, 260], arc: -1, moves: [
+      { at: 13.4, to: [1250, 470], dur: 0.7, hover: 1.6 }, // "Weekly design crit"
+      { at: 15.9, to: [990, 455], dur: 0.6, hover: 1.2 },  // "Fewer meetings"
+      { at: 17.9, to: [1110, 790], dur: 0.8, hover: 0 },   // parks in empty space
+    ] },
   { name: "Jordan", initial: "J", color: "#f24822", sessionId: 4, join: 14.5, leave: 99,
-    vp: [[0, ...OFF_T], [16, ...OFF_T], [18, 60, -140], [22.8, 60, -140], [24.8, ...OFF_T]],
-    curPhase: 4.2 },
+    home: [60, -140], vp: [[0, ...OFF_T], [16, ...OFF_T], [18, 60, -140], [22.8, 60, -140], [24.8, ...OFF_T]],
+    start: [1300, 250], arc: 1, moves: [
+      { at: 18.3, to: [760, 730], dur: 0.7, hover: 1.2 }, // "Rename Settings"
+      { at: 20.4, to: [500, 735], dur: 0.6, hover: 0 },   // parks right on the note I'm typing
+    ] },
 ];
 
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
@@ -135,6 +149,36 @@ function track(keys, t) {
   }
   const k = keys[keys.length - 1];
   return { x: k[1], y: k[2] };
+}
+
+// A hand-moved cursor: eased glide along a slight arc instead of a straight line.
+function glide(a, b, u, arc) {
+  const e = ease(u);
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const bow = Math.sin(Math.PI * e) * Math.hypot(dx, dy) * 0.12 * arc;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: a.x + dx * e - (dy / len) * bow, y: a.y + dy * e + (dx / len) * bow };
+}
+
+// Collaborator cursor relative to their viewport's top-left.
+function cursorRel(p, t) {
+  const rel = ([x, y]) => ({ x: x - p.home[0], y: y - p.home[1] });
+  let pos = rel(p.start);
+  let hoverEnd = -1;
+  for (const m of p.moves) {
+    if (t < m.at) break;
+    const to = rel(m.to);
+    if (t < m.at + m.dur) return glide(pos, to, (t - m.at) / m.dur, p.arc);
+    pos = to;
+    hoverEnd = m.at + m.dur + m.hover;
+  }
+  if (t < hoverEnd) {
+    // Small, slow, irregular jiggle while reading a card.
+    const k = p.sessionId;
+    pos = { x: pos.x + Math.sin(t * 1.7 + k) * 2.5 + Math.sin(t * 4.1 + k * 2) * 1.2,
+            y: pos.y + Math.cos(t * 1.3 + k) * 2 + Math.sin(t * 3.7 + k) * 1 };
+  }
+  return pos;
 }
 
 function mulberry32(a) {
@@ -184,14 +228,10 @@ function updateScript(t, level) {
 
 function myCursor(t) {
   const sc = script;
-  const drift = { x: Math.sin(t * 2.3) * 4, y: Math.cos(t * 1.9) * 3 };
-  if (sc.phase === "start") return { x: sc.from.x + drift.x, y: sc.from.y + drift.y };
+  if (sc.phase === "start") return sc.from;
   const spot = NOTES[sc.idx].spot;
-  if (sc.phase === "move") {
-    const u = ease(Math.min(1, (t - sc.since) / MOVE));
-    return { x: sc.from.x + (spot.x - sc.from.x) * u + drift.x, y: sc.from.y + (spot.y - sc.from.y) * u + drift.y };
-  }
-  return { x: spot.x + drift.x, y: spot.y + drift.y };
+  if (sc.phase === "move") return glide(sc.from, spot, Math.min(1, (t - sc.since) / MOVE), -1);
+  return spot; // hands on the keyboard, mouse stays put
 }
 
 function renderNotes(t) {
@@ -281,8 +321,8 @@ window.renderAt = (t) => {
     const present = t >= p.join && t < p.leave;
     const o = track(p.vp, t);
     const viewport = { x: o.x, y: o.y, width: VW, height: VH };
-    const cx = viewport.x + VW * (0.42 + 0.12 * Math.sin(t * 0.9 + p.curPhase));
-    const cy = viewport.y + VH * (0.45 + 0.1 * Math.cos(t * 1.1 + p.curPhase));
+    const r = cursorRel(p, t);
+    const cx = viewport.x + r.x, cy = viewport.y + r.y;
     p.state = { present, viewport, cursor: { x: cx, y: cy } };
     if (present) users.push({ sessionId: p.sessionId, viewport });
   }
